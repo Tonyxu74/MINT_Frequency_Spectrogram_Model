@@ -20,6 +20,9 @@ def gen_spectrogram():
         if not os.path.exists(raw_path.replace('raw', 'train')):
             os.mkdir(raw_path.replace('raw', 'train'))
 
+        # make the file linking each data item to the ground truth
+        gt_file = {}
+
         # keep track of how many data points we generate PER experimentee
         num_data_points = 0
 
@@ -94,7 +97,7 @@ def gen_spectrogram():
             # save a spectrogram for each label we have
             for label in label_list:
                 # this gets value of the label
-                val = label['label']
+                gt_val = label['label']
 
                 # this gets the time of when this value occurs, use the time it occurs (in seconds), add half of the
                 # length of the clip to ensure that we gather data near the center of the clip
@@ -127,10 +130,14 @@ def gen_spectrogram():
                 # finally convert to array and save
                 total_spectrograms = np.asarray(total_spectrograms)
                 save_path = raw_path.replace('raw', 'train') + '{}.npy'.format(num_data_points)
+                gt_file[save_path] = gt_val
                 np.save(save_path, total_spectrograms)
 
                 # we have saved a new datapoint, this increment this by one
                 num_data_points += 1
+
+        # save the gt info file
+        np.save(raw_path.replace('raw', 'train') + 'gt.npy', gt_file)
 
 
 if __name__ == "__main__":
