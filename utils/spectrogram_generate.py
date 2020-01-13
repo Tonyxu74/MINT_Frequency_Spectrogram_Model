@@ -2,8 +2,8 @@ from scipy import signal
 from glob import glob
 import datetime
 import numpy as np
-import matplotlib.pyplot as plt
 import os
+from myargs import args
 
 
 def gen_spectrogram():
