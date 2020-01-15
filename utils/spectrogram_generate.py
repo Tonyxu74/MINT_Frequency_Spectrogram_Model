@@ -129,6 +129,7 @@ def gen_spectrogram():
 
                 # finally convert to array and save
                 total_spectrograms = np.asarray(total_spectrograms)
+
                 save_path = raw_path.replace('raw', 'train') + '{}.npy'.format(num_data_points)
                 gt_file[save_path] = gt_val
                 np.save(save_path, total_spectrograms)

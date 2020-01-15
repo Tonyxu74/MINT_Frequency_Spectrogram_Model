@@ -5,7 +5,7 @@ from myargs import args
 class Simp_Model(nn.Module):
     def __init__(self):
         super(Simp_Model, self).__init__()
-        self.inputsize = args.patch_width * args.patch_size * args.patch_classes  # should be 1152
+        self.inputsize = args.patch_width * args.patch_height * args.patch_classes  # should be 1152
         self.FC1 = nn.Linear(self.inputsize, 512)
         self.FC2 = nn.Linear(512, 64)
         self.FC3 = nn.Linear(64, args.classes)

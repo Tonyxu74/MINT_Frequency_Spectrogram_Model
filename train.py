@@ -1,10 +1,10 @@
 from utils.model import Simp_Model
-from torch import nn
 import torch
 from tqdm import tqdm
 from myargs import args
 import time
 import numpy as np
+from utils.dataset import GenerateIterator
 
 
 def train():
@@ -13,8 +13,8 @@ def train():
     model = Simp_Model()
 
     # check if continue training from previous epochs
-    if args.continueTrain:
-        pretrained_dict = torch.load('PATH HERE'.format(args.start_epoch))['state_dict']
+    if args.continue_train:
+        pretrained_dict = torch.load('./data/model/{}_{}.pt'.format(args.model_name, args.start_epoch))['state_dict']
         model_dict = model.state_dict()
         # 1. filter out unnecessary keys
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
@@ -32,7 +32,17 @@ def train():
 
     lossfn = torch.nn.CrossEntropyLoss()
 
-    # iterator_train = GenerateIterator_train(args, './data/arrays/train')
+    iterator_train = GenerateIterator(args, './data/train', eval=False)
+
+    '''
+    NOTE!!!!!: VALIDATION FOLDER CURRENTLY HOLDS SAME DATA AS TRAIN FOLDER FOR SANITY CHECK
+    
+    If you would like to train/validate on specific experimentees, then simply copy their data folder into the
+    train or validation folders. DO NOT MIX PEOPLE'S DATA BETWEEN TRAIN AND VALIDATION, we want to make sure that
+    each individual that we test our models on have never been seen before
+    '''
+
+    iterator_val = GenerateIterator(args, './data/val', eval=True)
 
     # cuda?
     if torch.cuda.is_available():
@@ -41,7 +51,7 @@ def train():
 
     start_epoch = 1
 
-    for epoch in range(start_epoch, args.numEpochs):
+    for epoch in range(start_epoch, args.num_epochs):
 
         # values to look at average loss per batch over epoch
         loss_sum, batch_num = 0, 0
@@ -116,7 +126,7 @@ def train():
                 'state_dict': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
             }
-            torch.save(state, 'PATH HERE'.format(args.model_name, epoch))
+            torch.save(state, './data/model/{}_{}.pt'.format(args.model_name, epoch))
 
 
 if __name__ == '__main__':

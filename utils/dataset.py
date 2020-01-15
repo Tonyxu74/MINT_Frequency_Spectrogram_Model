@@ -1,21 +1,8 @@
 import glob
 from torch.utils import data
-import torchvision.transforms as transforms
 import numpy as np
-import random
-import os
 import torch
 from myargs import args
-
-
-def findFile(root_dir, endswith):
-    all_files = []
-    for path, subdirs, files in os.walk(root_dir):
-        for file in files:
-            if file.endswith(endswith):
-                all_files.append(os.path.join(path, file))
-
-    return all_files
 
 
 class Dataset(data.Dataset):
@@ -24,6 +11,8 @@ class Dataset(data.Dataset):
         'Initialization'
 
         self.eval = eval
+
+        # add to std if you would like some noise to be added to the spectrogram image
         self.std = 0
 
         # add images in different folders to the datalist
@@ -32,7 +21,14 @@ class Dataset(data.Dataset):
 
         for imfolder in folders:
             # open the gt.npy file in the folder and build a datalist
-            print('placeholder')
+            label_dict = np.load('{}gt.npy'.format(imfolder), allow_pickle=True).flatten()[0]
+            image_paths = label_dict.keys()
+            datalist.append([
+                {
+                    'image': image_path,
+                    'label': label_dict[image_path]
+                } for image_path in image_paths
+            ])
         self.datalist = [item for sublist in datalist for item in sublist]
 
         if not self.eval:
@@ -45,15 +41,17 @@ class Dataset(data.Dataset):
 
     def __getitem__(self, index):
         'Generates one sample of data'
+        image = np.load(self.datalist[index]['image'].replace('../', './'))
+        label = self.datalist[index]['label']
 
-        placeholder = 0
+        image = normalizepatch(image, self.eval, self.std)
 
-        return placeholder
+        return image, label
 
 
 def GenerateIterator(args, impath, eval=False, shuffle=True):
     params = {
-        'batch_size': args.batchSize,
+        'batch_size': args.batch_size,
         'shuffle': shuffle,
         'num_workers': args.workers,
         'pin_memory': False,
@@ -63,18 +61,17 @@ def GenerateIterator(args, impath, eval=False, shuffle=True):
     return data.DataLoader(Dataset(impath, eval=eval), **params)
 
 
-def normalizepatch(p, gt, eval, std):
+def normalizepatch(p, eval, std):
 
     if not eval:
-        rot_num = random.choice([0, 1, 2, 3])
-        p = np.rot90(p, rot_num)
-        gt = np.rot90(gt, rot_num)
-
-        noise = np.random.normal(
-            0, std, args.imageDims)
+        noise = np.random.normal(0, std, args.patch_dims)
         p += noise
 
     p = np.ascontiguousarray(p)
-    gt = np.ascontiguousarray(gt)
+    p = torch.from_numpy(p)
+
+    # consider normalizing here!
+
+    return p.float()
 
 
