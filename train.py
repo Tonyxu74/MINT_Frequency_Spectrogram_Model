@@ -5,6 +5,7 @@ from tqdm import tqdm
 from myargs import args
 import time
 import numpy as np
+import utils.dataset as dataset
 
 
 def train():
@@ -13,14 +14,14 @@ def train():
     model = Simp_Model()
 
     # check if continue training from previous epochs
-    if args.continueTrain:
-        pretrained_dict = torch.load('PATH HERE'.format(args.start_epoch))['state_dict']
-        model_dict = model.state_dict()
+    #if args.continueTrain:
+    #    pretrained_dict = torch.load('PATH HERE'.format(args.start_epoch))['state_dict']
+    #    model_dict = model.state_dict()
         # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+    #    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
         # 2. overwrite entries in the existing state dict
-        model_dict.update(pretrained_dict)
-        model.load_state_dict(model_dict)
+    #    model_dict.update(pretrained_dict)
+    #    model.load_state_dict(model_dict)
 
     # define optimizer, loss function, and iterators
     optimizer = torch.optim.Adam(
@@ -30,9 +31,11 @@ def train():
         betas=(args.beta1, args.beta2)
     )
 
-    lossfn = torch.nn.CrossEntropyLoss()
-
-    # iterator_train = GenerateIterator_train(args, './data/arrays/train')
+    lossfn = torch.nn.CrossEntropyLoss(weight=torch.tensor([1.,282/55,282/81,282/79,282/67]))
+    #lossfn = torch.nn.MSELoss() 
+    
+    iterator_train = dataset.GenerateIterator(args, '/data/train/trainfiles')
+    iterator_val = dataset.GenerateIterator(args, '/data/train/valfiles')
 
     # cuda?
     if torch.cuda.is_available():
@@ -41,7 +44,7 @@ def train():
 
     start_epoch = 1
 
-    for epoch in range(start_epoch, args.numEpochs):
+    for epoch in range(start_epoch, args.num_epoch):
 
         # values to look at average loss per batch over epoch
         loss_sum, batch_num = 0, 0
@@ -53,10 +56,18 @@ def train():
             if torch.cuda.is_available():
                 images = images.cuda()
                 labels = labels.cuda()
+            
+            images = images.float()
+            labels = labels.long()
+            
+            images = images.flatten()
 
             prediction = model(images)
+ 
+            #print(prediction)
+            #print(labels)
 
-            loss = lossfn(prediction, labels).mean()
+            loss = lossfn(prediction, labels)#.mean()
 
             optimizer.zero_grad()
             loss.backward()
@@ -80,10 +91,15 @@ def train():
                 for images, labels in progress_bar:
                     if torch.cuda.is_available():
                         images, labels = images.cuda(), labels.cuda()
+                    
+                    images = images.float()
+                    labels = labels.long()
+            
+                    images = images.flatten()
 
                     prediction = model(images)
 
-                    loss = lossfn(prediction, labels).mean()
+                    loss = lossfn(prediction, labels)
 
                     prediction = torch.softmax(prediction, dim=1)
                     pred_class = torch.argmax(prediction, dim=1)
@@ -96,7 +112,8 @@ def train():
                 preds = np.asarray(preds)
                 gts = np.asarray(gts)
 
-                val_classification_score = (np.mean(preds == gts)).astype(np.float)
+                #val_classification_score = (np.mean(preds == gts)).astype(np.float)
+                val_classification_score = (preds == gts).sum()/len(preds)
 
                 print(
                     '|| Ep {} || Secs {:.1f} || Loss {:.1f} || Val score {:.3f} || Val Loss {:.3f} ||\n'.format(
@@ -110,13 +127,13 @@ def train():
             model.train()
 
         # save models every 1 epoch
-        if epoch % 1 == 0:
-            state = {
-                'epoch': epoch,
-                'state_dict': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-            }
-            torch.save(state, 'PATH HERE'.format(args.model_name, epoch))
+        #if epoch % 5 == 0:
+        #    state = {
+        #        'epoch': epoch,
+        #        'state_dict': model.state_dict(),
+        #        'optimizer': optimizer.state_dict(),
+        #    }
+            #torch.save(state, 'PATH HERE'.format(args.model_name, epoch))
 
 
 if __name__ == '__main__':

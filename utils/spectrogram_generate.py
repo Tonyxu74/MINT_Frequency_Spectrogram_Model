@@ -3,12 +3,12 @@ from glob import glob
 import datetime
 import numpy as np
 import os
-from myargs import args
+#from myargs import args
 
 
 def gen_spectrogram():
     # find all data folders
-    raw_path_list = glob("../data/raw/*/")
+    raw_path_list = glob("../data/raw/")
 
     for raw_path in raw_path_list:
 
@@ -30,13 +30,14 @@ def gen_spectrogram():
             # open each txt file
             data_file = open(data_path, "r")
             label_file = open(label_path, "r")
+            print('Reading ' + str(data_path))
 
             # === extracting label info ===
             lines_read = 0
             label_list = []
             for line in label_file:
                 # so we ignore the first 2 lines because they aren't the data yet
-                if lines_read < 3:
+                if lines_read < 4:
                     lines_read += 1
                     continue
                 label_val, t_in_vid, t_of_clip = line.split(' ')
@@ -61,14 +62,16 @@ def gen_spectrogram():
             lines_read = 0
             data_list = []
             for line in data_file:
-                # skip first 7 lines (not data)
+                # skip first 6 lines (not data)
                 if lines_read < 7:
                     lines_read += 1
                     continue
 
                 # use some string manipulation to find time
                 time = line.split(', ')[-2]
+                #print(time)
                 hr, min, sec = time.split(':')
+                #print(min)
                 hr, min = int(hr), int(min)
                 sec, microsec = sec.split('.')
                 sec, microsec = int(sec), int(microsec) * 1000
@@ -130,7 +133,7 @@ def gen_spectrogram():
                 # finally convert to array and save
                 total_spectrograms = np.asarray(total_spectrograms)
                 save_path = raw_path.replace('raw', 'train') + '{}.npy'.format(num_data_points)
-                gt_file[save_path] = gt_val
+                gt_file['{}.npy'.format(num_data_points)] = gt_val
                 np.save(save_path, total_spectrograms)
 
                 # we have saved a new datapoint, this increment this by one
