@@ -1,4 +1,5 @@
 from utils.model import Simp_Model
+import utils.visualization as visualization
 from torch import nn
 import torch
 from tqdm import tqdm
@@ -12,7 +13,10 @@ def train():
 
     # define model
     model = Simp_Model()
-
+    
+    #for tensorboard
+    writer = visualization.writer
+    
     # check if continue training from previous epochs
     #if args.continueTrain:
     #    pretrained_dict = torch.load('PATH HERE'.format(args.start_epoch))['state_dict']
@@ -31,11 +35,18 @@ def train():
         betas=(args.beta1, args.beta2)
     )
 
-    lossfn = torch.nn.CrossEntropyLoss(weight=torch.tensor([1.,282/55,282/81,282/79,282/67]))
+    #lossfn = torch.nn.CrossEntropyLoss(weight=torch.tensor([1.,282/55,282/81,282/79,282/67]))
+    lossfn = torch.nn.CrossEntropyLoss()
     #lossfn = torch.nn.MSELoss() 
     
     iterator_train = dataset.GenerateIterator(args, '/data/train/trainfiles')
     iterator_val = dataset.GenerateIterator(args, '/data/train/valfiles')
+    
+    # sending model structure to tensorboard
+    images, labels = next(iter(iterator_train))
+    images=images.float().flatten()
+    writer.add_graph(model, images)
+    writer.close()
 
     # cuda?
     if torch.cuda.is_available():
@@ -77,6 +88,9 @@ def train():
             batch_num += 1
 
             progress_bar.set_description('Loss: {:.5f} '.format(loss_sum / (batch_num + 1e-6)))
+            
+        writer.add_scalar('train/loss', loss_sum, epoch)
+        
 
         '''======== VALIDATION ========'''
         if epoch % 1 == 0:
@@ -96,16 +110,33 @@ def train():
                     labels = labels.long()
             
                     images = images.flatten()
-
+                
                     prediction = model(images)
 
                     loss = lossfn(prediction, labels)
 
                     prediction = torch.softmax(prediction, dim=1)
                     pred_class = torch.argmax(prediction, dim=1)
+                    
+                    
+                    #print(prediction)
+                    #print('pc before ' + str(int(pred_class)))
+                    #print('label before '+ str(int(labels)))
+                    
+                    if (int(pred_class) != 0):
+                        pred_class = 1.0
+                                    
+                        
+                    if int(labels) != 0: 
+                        labels = 1.0
+                        
+                    #print(pred_class)
+                    #print(labels)
 
-                    preds.append(pred_class.cpu().numpy())
-                    gts.append(labels.cpu().numpy())
+                    #preds.append(pred_class.cpu().numpy())
+                    preds.append(int(pred_class))
+                    #gts.append(labels.cpu().numpy())
+                    gts.append(int(labels))
 
                     val_loss += loss.item()
 
@@ -113,7 +144,7 @@ def train():
                 gts = np.asarray(gts)
 
                 #val_classification_score = (np.mean(preds == gts)).astype(np.float)
-                val_classification_score = (preds == gts).sum()/len(preds)
+                val_classification_score = (preds == gts).sum()/len(preds) # raw accuracy
 
                 print(
                     '|| Ep {} || Secs {:.1f} || Loss {:.1f} || Val score {:.3f} || Val Loss {:.3f} ||\n'.format(
@@ -123,8 +154,11 @@ def train():
                         val_classification_score,
                         val_loss,
                     ))
+                
+                writer.add_scalar('test/loss', val_loss, epoch)
+                writer.add_scalar('test/accuracy', val_classification_score, epoch)
 
-            model.train()
+                #model.train()
 
         # save models every 1 epoch
         #if epoch % 5 == 0:
