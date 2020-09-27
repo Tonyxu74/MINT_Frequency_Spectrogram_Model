@@ -1,3 +1,7 @@
 data/*
 .idea/*
 runs/*
+pythonalias.sh
+trained_models/*
+__pycache__/
+utils/.ipynb_checkpoints/

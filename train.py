@@ -1,4 +1,4 @@
-from utils.model import Simp_Model
+from utils.model import simple_dnn
 import utils.visualization as visualization
 from torch import nn
 import torch
@@ -12,11 +12,11 @@ import utils.dataset as dataset
 def train():
 
     # define model
-    model = Simp_Model()
-    
+    model = simple_dnn()
+
     #for tensorboard
     writer = visualization.writer
-    
+
     # check if continue training from previous epochs
     #if args.continueTrain:
     #    pretrained_dict = torch.load('PATH HERE'.format(args.start_epoch))['state_dict']
@@ -35,13 +35,11 @@ def train():
         betas=(args.beta1, args.beta2)
     )
 
-    #lossfn = torch.nn.CrossEntropyLoss(weight=torch.tensor([1.,282/55,282/81,282/79,282/67]))
     lossfn = torch.nn.CrossEntropyLoss()
-    #lossfn = torch.nn.MSELoss() 
-    
+
     iterator_train = dataset.GenerateIterator(args, '/data/train/trainfiles')
     iterator_val = dataset.GenerateIterator(args, '/data/train/valfiles')
-    
+
     # sending model structure to tensorboard
     images, labels = next(iter(iterator_train))
     images=images.float().flatten()
@@ -67,14 +65,14 @@ def train():
             if torch.cuda.is_available():
                 images = images.cuda()
                 labels = labels.cuda()
-            
+
             images = images.float()
             labels = labels.long()
-            
+
             images = images.flatten()
 
             prediction = model(images)
- 
+
             #print(prediction)
             #print(labels)
 
@@ -88,9 +86,9 @@ def train():
             batch_num += 1
 
             progress_bar.set_description('Loss: {:.5f} '.format(loss_sum / (batch_num + 1e-6)))
-            
+
         writer.add_scalar('train/loss', loss_sum, epoch)
-        
+
 
         '''======== VALIDATION ========'''
         if epoch % 1 == 0:
@@ -105,31 +103,30 @@ def train():
                 for images, labels in progress_bar:
                     if torch.cuda.is_available():
                         images, labels = images.cuda(), labels.cuda()
-                    
+
                     images = images.float()
                     labels = labels.long()
-            
+
                     images = images.flatten()
-                
+
                     prediction = model(images)
 
                     loss = lossfn(prediction, labels)
 
                     prediction = torch.softmax(prediction, dim=1)
                     pred_class = torch.argmax(prediction, dim=1)
-                    
-                    
+
+
                     #print(prediction)
                     #print('pc before ' + str(int(pred_class)))
                     #print('label before '+ str(int(labels)))
-                    
-                    if (int(pred_class) != 0):
-                        pred_class = 1.0
-                                    
-                        
-                    if int(labels) != 0: 
-                        labels = 1.0
-                        
+
+                    # if we need to simplify classification by considering all movmenet as 1 signal
+                    #if (int(pred_class) != 0):
+                    #    pred_class = 1.0
+                    #if int(labels) != 0:
+                    #    labels = 1.0
+
                     #print(pred_class)
                     #print(labels)
 
@@ -154,20 +151,22 @@ def train():
                         val_classification_score,
                         val_loss,
                     ))
-                
+
                 writer.add_scalar('test/loss', val_loss, epoch)
                 writer.add_scalar('test/accuracy', val_classification_score, epoch)
 
                 #model.train()
 
-        # save models every 1 epoch
-        #if epoch % 5 == 0:
-        #    state = {
-        #        'epoch': epoch,
-        #        'state_dict': model.state_dict(),
-        #        'optimizer': optimizer.state_dict(),
-        #    }
-            #torch.save(state, 'PATH HERE'.format(args.model_name, epoch))
+        #save models every 10 epoch
+        if epoch % 25 == 0:
+            state = {
+                'epoch': epoch,
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+            }
+            #torch.save(state, '/trained_models/dnn_epoch{1}'.format(str(args.model_name), epoch))
+            torch.save(state, 'trained_models/dnn_epoch_' + str(epoch) )
+            print('saved model!')
 
 
 if __name__ == '__main__':

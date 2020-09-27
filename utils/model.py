@@ -2,7 +2,7 @@ from torch import nn
 from myargs import args
 
 
-class Simp_Model(nn.Module):
+class simple_dnn(nn.Module):
     def __init__(self):
         super(Simp_Model, self).__init__()
         self.inputsize = args.patch_width * args.patch_height * args.patch_classes  # should be 1152
@@ -21,3 +21,11 @@ class Simp_Model(nn.Module):
         y = y.view(1, y.size(0))
 
         return y
+
+# new models
+# class whatever_model(nn.Module):
+#     def __init__(self):
+#         #layers, whatever
+#     def forward(self, x)
+#         #y = f(x), etc
+#         return y
