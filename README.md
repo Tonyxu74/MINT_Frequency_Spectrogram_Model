@@ -10,6 +10,10 @@
 - `runs/` contains outputs from tensorboard.
 - the other stuff is miscellaneous.   
 
+## Data Location
+- Training and test data is located in the Google Drive: `MINT/Experiment Data/Machine Learning Data/data/train`. 
+- copy the `train` folder into the project repo and it should work from there. Everything is already set up in the `train` folder. 
+
 ## Tensorboard
 Make sure tensorboard is installed.
 While in project directory, start with
