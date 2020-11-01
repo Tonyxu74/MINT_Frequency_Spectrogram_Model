@@ -1,16 +1,18 @@
-from utils.model import Simp_Model
+from utils.model import Simp_Model, MultiLayerModel
 import torch
 from tqdm import tqdm
 from myargs import args
 import time
 import numpy as np
 from utils.dataset import GenerateIterator
+from sklearn.metrics import confusion_matrix
 
 
 def train():
 
     # define model
-    model = Simp_Model()
+    size_dict = {1: 7850, 2: 4900, 3: 1300, 4: 100}
+    model = MultiLayerModel(args.patch_classes, size_dict)
 
     # check if continue training from previous epochs
     if args.continue_train:
@@ -29,19 +31,10 @@ def train():
         weight_decay=args.weight_decay,
         betas=(args.beta1, args.beta2)
     )
-
-    lossfn = torch.nn.CrossEntropyLoss()
+    class_weights = torch.tensor([0.35, 1.0, 1.0, 1.0, 1.0], dtype=torch.float32)
+    lossfn = torch.nn.CrossEntropyLoss(weight=class_weights)
 
     iterator_train = GenerateIterator(args, './data/train', eval=False)
-
-    '''
-    NOTE!!!!!: VALIDATION FOLDER CURRENTLY HOLDS SAME DATA AS TRAIN FOLDER FOR SANITY CHECK
-    
-    If you would like to train/validate on specific experimentees, then simply copy their data folder into the
-    train or validation folders. DO NOT MIX PEOPLE'S DATA BETWEEN TRAIN AND VALIDATION, we want to make sure that
-    each individual that we test our models on have never been seen before
-    '''
-
     iterator_val = GenerateIterator(args, './data/val', eval=True)
 
     # cuda?
@@ -53,10 +46,17 @@ def train():
 
     for epoch in range(start_epoch, args.num_epochs):
 
+        # use annealing standard dev, max out on epoch 30, don't start until epoch 50
+        if epoch > 50:
+            noise_std = 0.03 * (epoch - 50) / 30
+            iterator_train.dataset.std = noise_std if noise_std <= 0.03 else 0.03
+
         # values to look at average loss per batch over epoch
         loss_sum, batch_num = 0, 0
         progress_bar = tqdm(iterator_train, disable=False)
         start = time.time()
+
+        t_preds, t_gts = [], []
 
         '''======== TRAIN ========'''
         for images, labels in progress_bar:
@@ -68,6 +68,11 @@ def train():
 
             loss = lossfn(prediction, labels).mean()
 
+            pred_class = torch.argmax(prediction.detach(), dim=1)
+
+            t_preds.extend(pred_class.cpu().numpy().tolist())
+            t_gts.extend(labels.cpu().numpy().tolist())
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -77,6 +82,12 @@ def train():
 
             progress_bar.set_description('Loss: {:.5f} '.format(loss_sum / (batch_num + 1e-6)))
 
+        t_preds = np.asarray(t_preds)
+        t_gts = np.asarray(t_gts)
+
+        train_classification_score = (np.mean(t_preds == t_gts)).astype(np.float)
+        print(confusion_matrix(t_gts, t_preds))
+
         '''======== VALIDATION ========'''
         if epoch % 1 == 0:
             with torch.no_grad():
@@ -85,7 +96,7 @@ def train():
                 preds, gts = [], []
 
                 progress_bar = tqdm(iterator_val)
-                val_loss = 0
+                val_loss, val_batch_num = 0, 0
 
                 for images, labels in progress_bar:
                     if torch.cuda.is_available():
@@ -95,32 +106,35 @@ def train():
 
                     loss = lossfn(prediction, labels).mean()
 
-                    prediction = torch.softmax(prediction, dim=1)
+                    prediction = torch.softmax(prediction.detach(), dim=1)
                     pred_class = torch.argmax(prediction, dim=1)
 
-                    preds.append(pred_class.cpu().numpy())
-                    gts.append(labels.cpu().numpy())
+                    preds.extend(pred_class.cpu().numpy().tolist())
+                    gts.extend(labels.cpu().numpy().tolist())
 
                     val_loss += loss.item()
+                    val_batch_num += 1
 
                 preds = np.asarray(preds)
                 gts = np.asarray(gts)
 
                 val_classification_score = (np.mean(preds == gts)).astype(np.float)
+                print(confusion_matrix(gts, preds))
 
                 print(
-                    '|| Ep {} || Secs {:.1f} || Loss {:.1f} || Val score {:.3f} || Val Loss {:.3f} ||\n'.format(
+                    '|| Ep {} || Secs {:.1f} || Train Score {:.3f} || Train Loss {:.5f} || Val score {:.3f} || Val Loss {:.5f} ||\n'.format(
                         epoch,
                         time.time() - start,
-                        loss_sum,
+                        train_classification_score,
+                        loss_sum / batch_num,
                         val_classification_score,
-                        val_loss,
+                        val_loss / val_batch_num,
                     ))
 
             model.train()
 
         # save models every 1 epoch
-        if epoch % 1 == 0:
+        if epoch % 50 == 0:
             state = {
                 'epoch': epoch,
                 'state_dict': model.state_dict(),

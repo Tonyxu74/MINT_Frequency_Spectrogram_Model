@@ -8,7 +8,7 @@ from myargs import args
 
 def gen_spectrogram():
     # find all data folders
-    raw_path_list = glob("../data/raw/*/")
+    raw_path_list = ["../data/raw/"]
 
     for raw_path in raw_path_list:
 
@@ -57,6 +57,8 @@ def gen_spectrogram():
                 })
                 prev_time = label_list[i]['time'] + label_list[i]['length']
 
+            print(len(label_list), data_path, label_path)
+
             # === extracting raw data info ===
             lines_read = 0
             data_list = []
@@ -101,14 +103,16 @@ def gen_spectrogram():
 
                 # this gets the time of when this value occurs, use the time it occurs (in seconds), add half of the
                 # length of the clip to ensure that we gather data near the center of the clip
-                time_of_clip = start_time + datetime.timedelta(seconds=(label['time'] + label['length']//2))
+                time_of_clip = start_time + datetime.timedelta(
+                    seconds=(label['time'] + label['length']/2 - args.seq_length/250/2)
+                )
 
                 data_num = 0
                 data_clip = []
                 for data in data_list:
                     # use this to determine how long of a snippet we want to train on (currently 1 second /
-                    # 250 datapoints)
-                    if data_num > 249:
+                    # seq_length datapoints)
+                    if data_num > args.seq_length - 1:
                         break
 
                     # when we find the time that is just larger than the time we are looking for, begin data collection
@@ -118,28 +122,53 @@ def gen_spectrogram():
                         data_num += 1
 
                 data_arr = np.asarray(data_clip)
-                num_channels = 8
+                data_arr = np.transpose(data_arr, (1, 0))
 
-                # generate and append spectrograms of each channel
-                total_spectrograms = []
-                for cha in range(num_channels):
-                    # use n per seg of 22 to have a shape of 12x12
-                    f, t, spectrogram = signal.spectrogram(data_arr[:, cha], fs=250, nperseg=22)
-                    total_spectrograms.append(spectrogram)
+                # this is for spectrogram data
+                # num_channels = 8
+                # # generate and append spectrograms of each channel
+                # total_spectrograms = []
+                # for cha in range(num_channels):
+                #     # use n per seg of 22 to have a shape of 12x12
+                #     f, t, spectrogram = signal.spectrogram(data_arr[:, cha], fs=250, nperseg=22)
+                #     total_spectrograms.append(spectrogram)
+                #
+                # # finally convert to array and save
+                # total_spectrograms = np.asarray(total_spectrograms)
 
-                # finally convert to array and save
-                total_spectrograms = np.asarray(total_spectrograms)
+                print(data_arr.shape)
 
                 save_path = raw_path.replace('raw', 'train') + '{}.npy'.format(num_data_points)
-                gt_file[save_path] = gt_val
-                np.save(save_path, total_spectrograms)
+                gt_file['{}.npy'.format(num_data_points)] = gt_val
+                np.save(save_path, data_arr)
 
                 # we have saved a new datapoint, this increment this by one
                 num_data_points += 1
 
         # save the gt info file
-        np.save(raw_path.replace('raw', 'train') + 'gt.npy', gt_file)
+        np.save('../gt.npy', gt_file)
+
+
+def get_mean_std(path):
+
+    list_datapaths = glob('{}/*/*.npy'.format(path))
+    print(list_datapaths)
+    values = []
+    for path in list_datapaths:
+        if 'gt' in path:
+            continue
+        # open an image
+        img = np.load(path, allow_pickle=True).flatten()[0]
+        np.asarray(img)
+
+        values.append(img)
+
+    values = np.asarray(values)
+
+    # return a mean and standard deviation
+    return np.mean(values), np.std(values)
 
 
 if __name__ == "__main__":
+    # print(get_mean_std('../data/time_train'))
     gen_spectrogram()
