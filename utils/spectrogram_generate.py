@@ -4,6 +4,8 @@ import datetime
 import numpy as np
 import os
 from myargs import args
+from tqdm import tqdm
+from collections import Counter
 
 
 def gen_spectrogram():
@@ -169,6 +171,124 @@ def get_mean_std(path):
     return np.mean(values), np.std(values)
 
 
+def resize_pretraining(datalist, labels):
+
+    # get resize length
+    resize_length = int(250 / 200 * len(datalist))
+
+    # resizes from 200Hz to 250Hz
+    res_data, res_labels = [], []
+
+    # j counts up to the total number in new sequence (args.seq_length)
+    j = 0
+
+    # iterate through the frames
+    for i, (data, label) in enumerate(zip(datalist, labels)):
+
+        # since the length is shorter, add the frame
+        res_data.append(data)
+        res_labels.append(label)
+        j += 1
+
+        # now, continue adding duplicates of the item based on the ratio between 250 and 200 Hz
+        while int(float(j) / resize_length * len(datalist)) == i:
+            res_data.append(data)
+            res_labels.append(label)
+            j += 1
+
+    # check sizes
+    assert len(res_data) == resize_length and len(res_labels) == resize_length
+    return res_data, res_labels
+
+
+def gen_pretrain_data():
+
+    path = '../data/txt/'
+
+    # make path to pretrain folder if not exist
+    if not os.path.exists(path.replace('txt', 'pretrain')):
+        os.mkdir(path.replace('txt', 'pretrain'))
+
+    # grab paths to each data point
+    label_paths = glob(path + '*log.txt')
+    data_paths = [p.replace('_log', '') for p in label_paths]
+
+    gt_file = {}
+    num_data = 0
+
+    # 0 is passive, 1 is left arm, 2 is left leg, 3 is right arm, 4 is right leg
+    gt_map = {1: 1, 2: 3, 3: 0, 4: 2, 5: 0, 6: 4}
+
+    for data_path, label_path in zip(data_paths, label_paths):
+
+        print(data_path, label_path)
+        data_file = open(data_path, "r")
+        label_file = open(label_path, "r")
+
+        data_list = []
+        gt_list = []
+        for data_pt, label in zip(data_file, label_file):
+            data_pt = [float(pt) for pt in data_pt.split(' ')]
+            label = int(label)
+
+            data_list.append(data_pt)
+            gt_list.append(label)
+
+        # resample data size to 250Hz
+        print(f'original length of data: {len(data_list)}')
+        data_list, gt_list = resize_pretraining(data_list, gt_list)
+        print(f'resized length of data: {len(data_list)}')
+
+        # iterate through everything
+        for start_index in tqdm(range(0, len(data_list) - args.seq_length, args.seq_stride)):
+
+            # get gt slice
+            gt_slice = gt_list[start_index: start_index + args.seq_length]
+
+            # get the label and how much of the slice equals the label
+            count_gts = Counter(gt_slice)
+
+            # if most common class is null
+            if count_gts.most_common(1)[0][0] == 0:
+
+                # check how many of null class there are, if all null, gt is 100% equal to 0
+                if count_gts.most_common(1)[0][1] == args.seq_length:
+                    gt = 0
+                    percent_gt = 1.0
+
+                # otherwise, check second most common class, and get how much percent it isn't null
+                else:
+                    gt = count_gts.most_common(2)[1][0]
+                    percent_gt = count_gts.most_common(2)[1][1] / args.seq_length
+
+            # another class for most common
+            else:
+                gt = count_gts.most_common(1)[0][0]
+                percent_gt = count_gts.most_common(1)[0][1] / args.seq_length
+
+            # skip if null class (no reading) or percent less than 20% (not enough label in example)
+            # this 99 label only happens in one of the pieces of data and we can just ignore it if it comes up
+            if gt == 0 or percent_gt < 0.2 or gt not in gt_map.keys():
+                continue
+
+            # get data slice
+            data_slice = np.asarray(data_list[start_index: start_index + args.seq_length], dtype=np.float)
+            data_slice = np.transpose(data_slice, (1, 0))
+
+            # map each ground truth to their value in our dataset (their zeroes are actually nothing happening)
+            gt = gt_map[gt]
+
+            # save the stuff and add label to gt list, get number of example for save path
+            gt_file['{}.npy'.format(num_data)] = gt
+            save_path = path.replace('txt', 'pretrain') + '{}.npy'.format(num_data)
+            np.save(save_path, data_slice)
+
+            num_data += 1
+
+    np.save('../pretrain_gt.npy', gt_file)
+
+
 if __name__ == "__main__":
     # print(get_mean_std('../data/time_train'))
-    gen_spectrogram()
+    # gen_spectrogram()
+    gen_pretrain_data()

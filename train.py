@@ -1,4 +1,4 @@
-from utils.model import Simp_Model, MultiLayerModel
+from utils.model import MultiLayerModel
 import torch
 from tqdm import tqdm
 from myargs import args
@@ -31,11 +31,11 @@ def train():
         weight_decay=args.weight_decay,
         betas=(args.beta1, args.beta2)
     )
-    class_weights = torch.tensor([0.35, 1.0, 1.0, 1.0, 1.0], dtype=torch.float32)
+    class_weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0], dtype=torch.float32)
     lossfn = torch.nn.CrossEntropyLoss(weight=class_weights)
 
-    iterator_train = GenerateIterator(args, './data/train', eval=False)
-    iterator_val = GenerateIterator(args, './data/val', eval=True)
+    iterator_train = GenerateIterator(args, './data/pretrain', eval=False, pretraining=True)
+    iterator_val = GenerateIterator(args, './data/preval', eval=True, pretraining=True)
 
     # cuda?
     if torch.cuda.is_available():
@@ -47,9 +47,8 @@ def train():
     for epoch in range(start_epoch, args.num_epochs):
 
         # use annealing standard dev, max out on epoch 30, don't start until epoch 50
-        if epoch > 50:
-            noise_std = 0.03 * (epoch - 50) / 30
-            iterator_train.dataset.std = noise_std if noise_std <= 0.03 else 0.03
+        noise_std = 0.03 * (50 - epoch) / 50
+        iterator_train.dataset.std = noise_std if noise_std > 0 else 0
 
         # values to look at average loss per batch over epoch
         loss_sum, batch_num = 0, 0
@@ -134,7 +133,7 @@ def train():
             model.train()
 
         # save models every 1 epoch
-        if epoch % 50 == 0:
+        if epoch % 1 == 0:
             state = {
                 'epoch': epoch,
                 'state_dict': model.state_dict(),

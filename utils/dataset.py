@@ -15,7 +15,7 @@ data_std = (0.35,)
 
 class Dataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
-    def __init__(self, impath, eval):
+    def __init__(self, impath, eval, pretraining):
         'Initialization'
 
         self.eval = eval
@@ -36,8 +36,12 @@ class Dataset(data.Dataset):
         datalist = []
         filepaths = glob.glob('{}/*'.format(impath))
 
-        # open the gt.npy file in the folder and build a datalis
-        label_dict = np.load('./gt.npy', allow_pickle=True).flatten()[0]
+        # open the gt.npy file in the folder and build a datalist
+        if not pretraining:
+            label_dict = np.load('./gt.npy', allow_pickle=True).flatten()[0]
+        else:
+            label_dict = np.load('./pretrain_gt.npy', allow_pickle=True).flatten()[0]
+
         for path in filepaths:
             datalist.append({
                 'image': path,
@@ -47,7 +51,7 @@ class Dataset(data.Dataset):
         self.datalist = datalist
 
         if not self.eval:
-            self.datalist = list(chain(*[[i] * 10 for i in self.datalist]))
+            self.datalist = list(chain(*[[i] * 1 for i in self.datalist]))
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -63,7 +67,7 @@ class Dataset(data.Dataset):
         return image, label
 
 
-def GenerateIterator(args, impath, eval=False, shuffle=True):
+def GenerateIterator(args, impath, eval=False, shuffle=True, pretraining=False):
     params = {
         'batch_size': args.batch_size,
         'shuffle': shuffle,
@@ -72,7 +76,7 @@ def GenerateIterator(args, impath, eval=False, shuffle=True):
         'drop_last': False,
     }
 
-    return data.DataLoader(Dataset(impath, eval=eval), **params)
+    return data.DataLoader(Dataset(impath, eval=eval, pretraining=pretraining), **params)
 
 
 def normalizepatch(p, eval, std, augmenter):
@@ -85,7 +89,7 @@ def normalizepatch(p, eval, std, augmenter):
     if not eval:
 
         # with 50% chance to do noise addition
-        if random.random() > 0.5:
+        if random.random() > -1:
             noise = np.random.normal(0, std, (args.patch_classes, args.seq_length))
             p += noise
 
