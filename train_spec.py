@@ -1,4 +1,4 @@
-from utils.model import MultiLayerModel
+from utils.model import Conv_Model
 import torch
 from tqdm import tqdm
 from myargs import args
@@ -11,8 +11,7 @@ from sklearn.metrics import confusion_matrix
 def train():
 
     # define model
-    size_dict = {1: 7850, 2: 4900, 3: 1300, 4: 100}
-    model = MultiLayerModel(args.patch_classes, size_dict)
+    model = Conv_Model()
 
     if args.pretrain:
         pretrained_dict = torch.load(args.pretrained_path)['state_dict']
@@ -43,8 +42,8 @@ def train():
     class_weights = torch.tensor([0.4, 1.0, 1.0, 1.0, 1.0], dtype=torch.float32)
     lossfn = torch.nn.CrossEntropyLoss(weight=class_weights)
 
-    iterator_train = GenerateIterator(args, './data/train', eval=False, input_mode='train')
-    iterator_val = GenerateIterator(args, './data/val', eval=True, input_mode='train')
+    iterator_train = GenerateIterator(args, './data/htrain', eval=False, input_mode='htrain', spectro_in=True)
+    iterator_val = GenerateIterator(args, './data/hval', eval=True, input_mode='htrain', spectro_in=True)
 
     # cuda?
     if torch.cuda.is_available():
@@ -58,7 +57,7 @@ def train():
         # use annealing standard dev, max out on epoch 30, don't start until epoch 50
         # noise_std = 1 * (50 - epoch) / 50
         # iterator_train.dataset.std = noise_std if noise_std > 0 else 0
-        iterator_train.dataset.std = 0.2
+        iterator_train.dataset.std = 0.3
 
         # values to look at average loss per batch over epoch
         loss_sum, batch_num = 0, 0
@@ -153,16 +152,4 @@ def train():
 
 
 if __name__ == '__main__':
-    # train()
-    model = MultiLayerModel(8, {1: 7850, 2: 4900, 3: 1300, 4: 100})
-    pretrained_dict = torch.load('./data/model/multilayer_conv_178.pt')['state_dict']
-    model_dict = model.state_dict()
-    # 1. filter out unnecessary keys
-    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-    # 2. overwrite entries in the existing state dict
-    model_dict.update(pretrained_dict)
-    model.load_state_dict(model_dict)
-    example = torch.rand(1, 1, 8, 500)
-    model.eval()
-    traced_model = torch.jit.trace(model, example)
-    traced_model.save('traced_multilayer_conv.pt')
+    train()

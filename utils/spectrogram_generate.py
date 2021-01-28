@@ -126,7 +126,7 @@ def gen_spectrogram():
                 data_arr = np.asarray(data_clip)
                 data_arr = np.transpose(data_arr, (1, 0))
 
-                # this is for spectrogram data
+                # # this is for spectrogram data
                 # num_channels = 8
                 # # generate and append spectrograms of each channel
                 # total_spectrograms = []
@@ -137,6 +137,8 @@ def gen_spectrogram():
                 #
                 # # finally convert to array and save
                 # total_spectrograms = np.asarray(total_spectrograms)
+                #
+                # print(total_spectrograms.shape)
 
                 print(data_arr.shape)
 
@@ -288,7 +290,197 @@ def gen_pretrain_data():
     np.save('../pretrain_gt.npy', gt_file)
 
 
+def han_data():
+    # find all data folders
+    raw_path_list = ["../data/20201117_RealMove_ImaginaryMove_Han/"]
+
+    for raw_path in raw_path_list:
+
+        # find raw data and logs separately
+        data_paths = glob(raw_path + "raw_nov*.txt")
+        label_paths = glob(raw_path + "log_nov*.txt")
+
+        # make data folders IF they do not already exist
+        if not os.path.exists(raw_path.replace('20201117_RealMove_ImaginaryMove_Han', 'htrain')):
+            os.mkdir(raw_path.replace('20201117_RealMove_ImaginaryMove_Han', 'htrain'))
+
+        if not os.path.exists(raw_path.replace('20201117_RealMove_ImaginaryMove_Han', 'hval')):
+            os.mkdir(raw_path.replace('20201117_RealMove_ImaginaryMove_Han', 'hval'))
+
+        # make the file linking each data item to the ground truth
+        gt_file = {}
+
+        # keep track of how many data points we generate PER experimentee
+        num_data_points = 0
+
+        for data_path, label_path in zip(data_paths, label_paths):
+
+            # open each txt file
+            data_file = open(data_path, "r")
+            label_file = open(label_path, "r")
+
+            # grab the c1, or c2, or c-whatever and trial number
+            vid_num = data_path.split('_')[-3]
+            trial_num = int(data_path.split('_')[-1].split('.')[0])
+            timestamp_path = glob(f'{raw_path}log_timestamp*{vid_num}_*.txt')[0]
+            timestamp_file = open(timestamp_path, "r")
+            video_start = timestamp_file.readlines()[trial_num - 1].split(' ')[-1]
+
+            # string for video start time
+            hr, min, sec = video_start.split(':')
+            hr, min = int(hr), int(min)
+            sec, microsec = sec.split('.')
+            sec, microsec = int(sec), int(microsec)
+
+            # datetime object for video start time, since it's in one day (not at 12am) we can assign any yr/mon/day
+            video_start = datetime.datetime(
+                year=2019,
+                month=12,
+                day=31,
+                hour=hr,
+                minute=min,
+                second=sec,
+                microsecond=microsec
+            )
+
+            # === extracting label info ===
+            lines_read = 0
+            label_list = []
+            for line in label_file:
+                # so we ignore the first 2 lines because they aren't the data yet
+                if lines_read < 3:
+                    lines_read += 1
+                    continue
+                label_val, t_in_vid, t_of_clip = line.split(' ')
+                label_list.append({
+                    'label': int(label_val) + 1,
+                    'time': int(t_in_vid),
+                    'length': int(t_of_clip.replace('\n', ''))
+                })
+
+                lines_read += 1
+            # get some null values as well (guess that nothing is happening, occurs in gaps between labels)
+            prev_time = 0
+            for i in range(len(label_list)):
+                label_list.append({
+                    'label': 0,
+                    'time': prev_time,
+                    'length': label_list[i]['time'] - prev_time
+                })
+                prev_time = label_list[i]['time'] + label_list[i]['length']
+
+            print(f'num labels {len(label_list)}, paths: {data_path} {label_path} {timestamp_path}')
+
+            # === extracting raw data info ===
+            lines_read = 0
+            data_list = []
+            for line in data_file:
+                # skip first 7 lines (not data)
+                if lines_read < 7:
+                    lines_read += 1
+                    continue
+
+                # use some string manipulation to find time
+                time = line.split(', ')[-2]
+                hr, min, sec = time.split(':')
+                hr, min = int(hr), int(min)
+                sec, microsec = sec.split('.')
+                sec, microsec = int(sec), int(microsec) * 1000
+
+                # year month and day are arbitrary, use datetime library to add times quickly
+                time = datetime.datetime(
+                    year=2019,
+                    month=12,
+                    day=31,
+                    hour=hr,
+                    minute=min,
+                    second=sec,
+                    microsecond=microsec
+                )
+
+                # make first datapoint in list when video starts
+                if time < video_start:
+                    continue
+
+                # get the actual data point at this time
+                data_pt = line.split(', ')[1:9]
+                data_pt = [float(val) for val in data_pt]
+                data_list.append({'val': data_pt, 'time': time})
+
+                lines_read += 1
+
+            # start time is first value in the datalist
+            start_time = data_list[0]['time']
+            print(f'start time: {start_time}, video start: {video_start}')
+
+            # save a spectrogram for each label we have
+            for label in label_list:
+                # this gets value of the label
+                gt_val = label['label']
+
+                # this gets the time of when this value occurs, use the time it occurs (in seconds), add half of the
+                # length of the clip to ensure that we gather data near the center of the clip
+                # time_of_clip = start_time + datetime.timedelta(
+                #     seconds=(label['time'] + label['length']/2 - args.seq_length/250/2)
+                # )
+                time_of_clip = label['time'] + label['length']/2 - args.seq_length/250/2
+
+                data_num = 0
+                data_clip = []
+                for data in data_list[int(time_of_clip*250):]:
+                    # use this to determine how long of a snippet we want to train on (currently 1 second /
+                    # seq_length datapoints)
+                    if data_num > args.seq_length - 1:
+                        break
+
+                    # when we find the time that is just larger than the time we are looking for, begin data collection
+                    # as above, data collection stops in exactly 250 datapoints
+                    # if data['time'] > time_of_clip:
+                    #     data_clip.append(data['val'])
+                    #     data_num += 1
+                    data_clip.append(data['val'])
+                    data_num += 1
+
+                data_arr = np.asarray(data_clip)
+                data_arr = np.transpose(data_arr, (1, 0))
+
+                # # this is for spectrogram data
+                # num_channels = 8
+                # # generate and append spectrograms of each channel
+                # total_spectrograms = []
+                # for cha in range(num_channels):
+                #     # use n per seg of 22 to have a shape of 12x12
+                #     f, t, spectrogram = signal.spectrogram(data_arr[:, cha], fs=250, nperseg=22)
+                #     total_spectrograms.append(spectrogram)
+                #
+                # # finally convert to array and save
+                # total_spectrograms = np.asarray(total_spectrograms)
+                #
+                # print(total_spectrograms.shape)
+
+                print(data_arr.shape)
+
+                if trial_num == 3:
+                    save_path = raw_path.replace(
+                        '20201117_RealMove_ImaginaryMove_Han', 'hval') + '{}.npy'.format(num_data_points)
+                elif trial_num == 1 or trial_num == 2:
+                    save_path = raw_path.replace(
+                        '20201117_RealMove_ImaginaryMove_Han', 'htrain') + '{}.npy'.format(num_data_points)
+                else:
+                    raise ValueError('Unexpected trial number!')
+
+                gt_file['{}.npy'.format(num_data_points)] = gt_val
+                np.save(save_path, data_arr)
+
+                # we have saved a new datapoint, this increment this by one
+                num_data_points += 1
+
+        # save the gt info file
+        np.save('../h_gt.npy', gt_file)
+
+
 if __name__ == "__main__":
     # print(get_mean_std('../data/time_train'))
     # gen_spectrogram()
-    gen_pretrain_data()
+    # gen_pretrain_data()
+    han_data()

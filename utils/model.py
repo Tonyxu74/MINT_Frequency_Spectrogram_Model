@@ -126,6 +126,16 @@ class MultiLayerModel(nn.Module):
         self.dropout = nn.Dropout(0.5)
         self.relu = nn.ReLU()
 
+    def freeze_backbone(self):
+        for param in self.CNN_1.parameters():
+            param.requires_grad = False
+        for param in self.CNN_2.parameters():
+            param.requires_grad = False
+        for param in self.CNN_3.parameters():
+            param.requires_grad = False
+        for param in self.CNN_4.parameters():
+            param.requires_grad = False
+
     def forward(self, x):
         # backbone feature extractors
         x1 = self.CNN_1(x)
@@ -145,6 +155,58 @@ class MultiLayerModel(nn.Module):
         return x
 
 
+class Conv_Model(nn.Module):
+    def __init__(self):
+        super(Conv_Model, self).__init__()
+
+        self.conv1 = nn.Conv2d(args.patch_classes, 32, kernel_size=5, stride=1, padding=2, bias=False)
+        self.bn1 = nn.BatchNorm2d(32)
+
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(64)
+
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(128)
+
+        self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=0, bias=False)
+        self.bn4 = nn.BatchNorm2d(256)
+
+        self.pool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
+
+        self.fc = nn.Linear(256, args.classes)
+        self.dropout = nn.Dropout(0.3)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu(x)
+
+        x = self.conv4(x)
+        x = self.bn4(x)
+        x = self.relu(x)
+
+        x = self.pool(x)
+
+        x = x.flatten(1)
+        x = self.dropout(x)
+        x = self.fc(x)
+
+        return x
+
+
+# model = Conv_Model()
+# input = torch.randn(4, 8, 17, 17)
+# print(model(input).shape)
 # size_dict = {1: 7850, 2: 4900, 3: 1300, 4: 100}
 # input = torch.randn(4, 1, 8, 500)
 # model = MultiLayerModel(8, size_dict)

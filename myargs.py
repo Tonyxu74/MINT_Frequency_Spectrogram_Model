@@ -4,12 +4,14 @@ parser = argparse.ArgumentParser()
 
 ######################## Model parameters ########################
 
-parser.add_argument('--model_name', default='pretrained_multilayer_conv',
-                    help='pretrained model name')
-parser.add_argument('--classes', default=5, type=int,
+parser.add_argument('--model_name', default='spectro_conv',
+                    help='model name')
+parser.add_argument('--pretrained_path', default='./data/model/pretrained_multilayer_conv_38.pt',
+                    help='pretrained model weights path')
+parser.add_argument('--classes', default=2, type=int,
                     help='# of classes')
 
-parser.add_argument('--lr', default=0.0001, type=float,
+parser.add_argument('--lr', default=0.001, type=float,
                     help='learning rate')
 parser.add_argument('--weight_decay', default=0.0001, type=float,
                     help='weight decay/weights regularizer for sgd')
@@ -33,13 +35,15 @@ parser.add_argument('--batch_size_eval', default=32, type=int,
 
 parser.add_argument('--continue_train', default=False, type=bool,
                     help='continue training from certain epoch?')
+parser.add_argument('--pretrain', default=False, type=bool,
+                    help='Use pretrained model weights?')
 parser.add_argument('--workers', default=0, type=int,
                     help='amount of workers to use when runnning iterator')
 
 ######################## Image properties (size) ########################
 parser.add_argument('--patch_dims', default=(8, 12, 12), type=tuple,
                     help='total patch size')
-parser.add_argument('--seq_length', default=500, type=int,
+parser.add_argument('--seq_length', default=250, type=int,
                     help='input sequence length')
 parser.add_argument('--seq_stride', default=500, type=int,
                     help='input sequence length')
