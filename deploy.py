@@ -52,7 +52,7 @@ class DeployModel:
         return data
         # time.sleep(1)  # Updating the window in every one second
 
-    def get_data_and_model(self):
+    def get_data_and_output(self):
 
         # get generator
         x = self.data_gen_test()
@@ -74,3 +74,5 @@ class DeployModel:
 if __name__ == '__main__':
     dm = DeployModel('./data/model/spectro_conv_134.pt')
     # dm.deploy()
+    data, output = dm.get_data_and_output()
+    print(output)

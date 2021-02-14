@@ -41,17 +41,17 @@ parser.add_argument('--workers', default=0, type=int,
                     help='amount of workers to use when runnning iterator')
 
 ######################## Image properties (size) ########################
-parser.add_argument('--patch_dims', default=(8, 12, 12), type=tuple,
+parser.add_argument('--patch_dims', default=(64, 24, 24), type=tuple,
                     help='total patch size')
-parser.add_argument('--seq_length', default=250, type=int,
+parser.add_argument('--seq_length', default=1024, type=int,
                     help='input sequence length')
 parser.add_argument('--seq_stride', default=500, type=int,
                     help='input sequence length')
-parser.add_argument('--patch_width', default=12, type=int,
+parser.add_argument('--patch_width', default=24, type=int,
                     help='patch size width')
-parser.add_argument('--patch_height', default=12, type=int,
+parser.add_argument('--patch_height', default=24, type=int,
                     help='patch size height')
-parser.add_argument('--patch_classes', default=8, type=int,
+parser.add_argument('--patch_classes', default=64, type=int,
                     help='patch size height')
 
 ######################## Folders ########################

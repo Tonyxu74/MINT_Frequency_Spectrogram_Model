@@ -96,7 +96,7 @@ def butter_bandpass(lowcut, highcut, fs=250, order=5):
     nyq = 0.5 * fs
     low = lowcut / nyq
     high = highcut / nyq
-    b, a = butter(order, low, btype='highpass', output='ba')
+    b, a = butter(order, (low, high), btype='bandpass', output='ba')
     return b, a
 
 
