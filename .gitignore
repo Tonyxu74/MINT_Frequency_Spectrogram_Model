@@ -1,7 +1,12 @@
-data/*
 .idea/*
+<<<<<<< HEAD
 runs/*
 pythonalias.sh
 trained_models/*
 __pycache__/
 utils/.ipynb_checkpoints/
+=======
+__pycache__/*
+utils/__pycache__/*
+data/*
+>>>>>>> Tony
