@@ -198,8 +198,28 @@ class Conv_Model(nn.Module):
         x = self.pool(x)
 
         x = x.flatten(1)
-        x = self.dropout(x)
+        # x = self.dropout(x)
         x = self.fc(x)
+
+        return x
+
+
+class Freq_Model(nn.Module):
+    def __init__(self):
+        super(Freq_Model, self).__init__()
+        self.inputsize = args.frequency_size * args.patch_classes  # should be 3072
+        self.FC1 = nn.Linear(self.inputsize, 1024)
+        self.FC2 = nn.Linear(1024, 128)
+        self.FC3 = nn.Linear(128, args.classes)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.3)
+
+    def forward(self, x):
+        # x = x.view(x.size(0), -1)
+        x = self.relu(self.FC1(x))
+        x = self.relu(self.FC2(x))
+        # x = self.dropout(x)
+        x = self.FC3(x)
 
         return x
 

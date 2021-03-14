@@ -4,7 +4,7 @@ parser = argparse.ArgumentParser()
 
 ######################## Model parameters ########################
 
-parser.add_argument('--model_name', default='spectro_conv',
+parser.add_argument('--model_name', default='spectro_mlp',
                     help='model name')
 parser.add_argument('--pretrained_path', default='./data/model/pretrained_multilayer_conv_38.pt',
                     help='pretrained model weights path')
@@ -53,6 +53,8 @@ parser.add_argument('--patch_height', default=24, type=int,
                     help='patch size height')
 parser.add_argument('--patch_classes', default=64, type=int,
                     help='patch size height')
+parser.add_argument('--frequency_size', default=48, type=int,
+                    help='number of frequencies cut out from the FFT')
 
 ######################## Folders ########################
 

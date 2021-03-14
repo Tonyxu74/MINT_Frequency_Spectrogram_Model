@@ -19,10 +19,12 @@ def butter_bandpass_filter(data, lowcut, highcut, order=5):
     return y
 
 
-def process_online(path, savepath):
+def process_online(path, savepath, valpath):
 
     if not os.path.exists(savepath):
         os.mkdir(savepath)
+    if not os.path.exists(valpath):
+        os.mkdir(valpath)
 
     data_paths = glob(path + "*.mat")
 
@@ -39,18 +41,26 @@ def process_online(path, savepath):
 
         # imagery_events in (time)
         im_events = patient_data['eeg'][0][0][11][0]
-        im_events = np.argwhere(im_events)[:, 0]
+        im_events = np.argwhere(im_events)[:, 0].tolist()
 
         # bad_trial_indices, just check if there are any
         bad_trial_idx_voltage = patient_data['eeg'][0][0][14][0][0][0][0]
         bad_trial_idx_mi = patient_data['eeg'][0][0][14][0][0][1][0]
-        print(bad_trial_idx_voltage)
-        print(bad_trial_idx_mi)
+        bad_trial_idx_voltage = bad_trial_idx_voltage[0].flatten().tolist() + bad_trial_idx_voltage[1].flatten().tolist()
+        bad_trial_idx_mi = bad_trial_idx_mi[0].flatten().tolist() + bad_trial_idx_mi[1].flatten().tolist()
+        allbad = bad_trial_idx_voltage + bad_trial_idx_mi
+
+        # remove them from event list for left and right
+        im_events = [event for ind, event in enumerate(im_events) if ind+1 not in set(allbad)]
 
         subject_num = datapath.split('\\')[-1].split('.')[0]
 
+        val_split = int(0.8 * len(im_events))
+        print(f'subject num: {subject_num}, events: {len(im_events)*2}, bad trials: {allbad}')
+        print(im_events)
+
         # cut out for each im event
-        for event_time in im_events:
+        for event_num, event_time in enumerate(im_events):
 
             # get 2 seconds of each piece of data 0.5s after stimulus, remove EMG channels
             data_left = left_im[0: 64, event_time + srate // 2: event_time + srate * 5 // 2]
@@ -69,12 +79,17 @@ def process_online(path, savepath):
                 data_left[i] = butter_bandpass_filter(data_left[i], 8, 30, order=4)
                 data_right[i] = butter_bandpass_filter(data_right[i], 8, 30, order=4)
 
-            # save dicts for each datapoint
-            np.save(f'{savepath}/{num_data}.npy', {'subject': subject_num, 'data': data_left, 'label': 'left'})
-            np.save(f'{savepath}/{num_data+1}.npy', {'subject': subject_num, 'data': data_right, 'label': 'right'})
+            if event_num < val_split:
+                # save train dicts for each datapoint
+                np.save(f'{savepath}/{num_data}.npy', {'subject': subject_num, 'data': data_left, 'label': 'left'})
+                np.save(f'{savepath}/{num_data+1}.npy', {'subject': subject_num, 'data': data_right, 'label': 'right'})
+            else:
+                # save train dicts for each datapoint
+                np.save(f'{valpath}/{num_data}.npy', {'subject': subject_num, 'data': data_left, 'label': 'left'})
+                np.save(f'{valpath}/{num_data + 1}.npy', {'subject': subject_num, 'data': data_right, 'label': 'right'})
 
             num_data += 2
 
 
 if __name__ == '__main__':
-    process_online('../data/eeg_online/', '../data/preproc_online/')
+    process_online('../data/eeg_online/', '../data/preproc_online_train/', '../data/preproc_online_val/')

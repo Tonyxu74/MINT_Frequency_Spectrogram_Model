@@ -7,7 +7,7 @@ from torchvision.transforms import Normalize
 from itertools import chain
 import tsaug
 import random
-from scipy.signal import butter, lfilter, spectrogram
+from scipy.signal import spectrogram
 
 
 data_mean = (0.5, )
@@ -58,7 +58,7 @@ class Dataset(data.Dataset):
         data = self.datalist[index]['data']
 
         # convert from micro to millivolts?
-        # data = data / 1000
+        data = data / 1000
 
         # get label, convert to binary value
         label = self.datalist[index]['label']
@@ -93,25 +93,31 @@ def normalizepatch(p, eval, std, augmenter, use_spectro):
         # try spectrogram stuff again
         total_spectrograms = []
         for cha in range(len(p)):
-            # use n per seg of 46 to have a shape of 24x24
-            f, t, spectro = spectrogram(p[cha, :], fs=512, nperseg=46)
-            total_spectrograms.append(spectro)
+            # use n per seg of 1024 to have a shape of 513x1
+            f, t, spectro = spectrogram(p[cha, :], fs=512, nperseg=1024)
+
+            # divide by mean of each channel to normalize, take only relevant frequencies
+            spectro = spectro[14:62, 0].flatten()
+            spectro = spectro / spectro.mean()
+
+            total_spectrograms.extend(spectro)
+
         total_spectrograms = np.asarray(total_spectrograms)
 
-        # put spec between 0 and 1
+        # put spec between -1 and 1
         # total_spectrograms = total_spectrograms - total_spectrograms.min()
-        # total_spectrograms = total_spectrograms / total_spectrograms.max()
+        # total_spectrograms = total_spectrograms / total_spectrograms.max() * 2 - 1
 
         # # augmentations
-        # if not eval:
-        #
-        #     # with 50% chance to do noise addition
-        #     if random.random() > 0.5:
-        #         noise = np.random.normal(0, std, args.patch_dims)
-        #         total_spectrograms += noise
+        if not eval:
 
-        p = np.ascontiguousarray(total_spectrograms)
-        p = torch.from_numpy(p).float()
+            # with 50% chance to do noise addition
+            if random.random() > 0.5:
+                noise = np.random.normal(0, std, len(p) * (62-14))
+                total_spectrograms += noise
+
+        # p = np.ascontiguousarray(total_spectrograms)
+        p = torch.from_numpy(total_spectrograms).float()
 
     else:
 
@@ -139,6 +145,7 @@ def normalizepatch(p, eval, std, augmenter, use_spectro):
 
     # output shape is (1, channels, sequence) typically (1, 64, 1024)
     # or (64, 24, 24) for spectrogram
+    # or (3072,) for only frequency information
     return p
 
 
